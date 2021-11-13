@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Delta</title>
+</head>
+<body>
+<h1 style="text-align: center;">Upload test</h1>
+
+<div style="display: flex; justify-content: center;">
+    <form action="http://localhost:7777/api/submissions" method="post" enctype="multipart/form-data">
+        Language: <select name="lang">
+            <option value="c">C</option>
+            <option value="java">Java</option>
+            <option value="python">Python</option>
+          </select>
+          <br/>
+          <br/>
+        Files: <input type="file" name="mainFile"><br><br>
+        <input type="submit" style="width: 100%">
+    </form>
+</div>
+</body>
+</html>
