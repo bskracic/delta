@@ -4,24 +4,18 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
+	"strings"
+	"time"
 
+	"github.com/bSkracic/delta-rest/lib/wrap"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 )
-
-type LanguageConf struct {
-	Name      string
-	Compiler  string
-	Extension string
-	File      string
-	Cmd       string
-	Image     string
-}
 
 type Dockercli struct {
 	Cli *client.Client
@@ -37,6 +31,41 @@ func CreateClient() *Dockercli {
 	return &Dockercli{Cli: cli, Ctx: context.Background()}
 }
 
+func (dc *Dockercli) RetreiveAvailableContainer(langName string, image string) string {
+
+	contName := fmt.Sprintf("delta-%s", langName)
+
+	filters := filters.NewArgs()
+	filters.Add("name", contName)
+	containers, err := dc.Cli.ContainerList(dc.Ctx, types.ContainerListOptions{Filters: filters})
+	if err != nil {
+		panic(err)
+	}
+
+	var id string
+
+	if len(containers) == 0 {
+		id = dc.Run(fmt.Sprintf("delta-%s-%v", langName, time.Now().Unix()), image)
+	} else {
+		found := false
+		for _, c := range containers {
+			if strings.Contains(c.Status, "Up") {
+				id = c.ID
+				found = true
+				break
+			} else {
+				// Remove all containers that are exited or not running, may be slow, depending on number of containers!
+				dc.Remove(c.ID)
+			}
+		}
+
+		if !found {
+			id = dc.Run(fmt.Sprintf("delta-%s-%v", langName, time.Now().Unix()), image)
+		}
+	}
+	return id
+}
+
 func (dc *Dockercli) Kill(id string) {
 	dc.Cli.ContainerKill(dc.Ctx, id, "")
 	log.Default().Printf("Killed: %s\n", id)
@@ -47,13 +76,12 @@ func (dc *Dockercli) Remove(id string) {
 	log.Default().Printf("Removed: %s\n", id)
 }
 
-func (dc *Dockercli) Run(lc *LanguageConf) string {
-	conName := "delta-" + lc.Name
+func (dc *Dockercli) Run(name string, image string) string {
 	resp, err := dc.Cli.ContainerCreate(dc.Ctx, &container.Config{
-		Image: lc.Image,
+		Image: image,
 		Cmd:   []string{"sleep", "infinity"},
 		Tty:   false,
-	}, nil, nil, nil, conName)
+	}, nil, nil, nil, name)
 	if err != nil {
 		panic(err)
 	}
@@ -65,16 +93,28 @@ func (dc *Dockercli) Run(lc *LanguageConf) string {
 	return resp.ID
 }
 
-func (dc *Dockercli) Copy(file io.Reader, id string) {
+func (dc *Dockercli) Copy(mainFile []byte, mainFileName string, id string) {
+	var buf bytes.Buffer
+	buf.Write(mainFile)
+	file, err := wrap.Generate(mainFileName, buf.String())
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	filePath := "/"
 	if err := dc.Cli.CopyToContainer(dc.Ctx, id, filePath, file, types.CopyToContainerOptions{AllowOverwriteDirWithFile: true}); err != nil {
 		log.Fatalf("copy failed: %s", err)
 	}
 }
 
-func (dc *Dockercli) Exec(id string, lc *LanguageConf, ch chan<- string) {
-	// fmt.Printf("cmd: %s\n", lf.cmd)
-	config := types.ExecConfig{AttachStdin: true, AttachStdout: true, Cmd: []string{"bash", "-c", lc.Cmd}}
+type ExecOutput struct {
+	Stdout   string
+	Stderr   string
+	ExitCode int
+}
+
+func (dc *Dockercli) Exec(id string, cmd string, ch chan<- *ExecOutput) {
+	config := types.ExecConfig{AttachStdin: true, AttachStdout: true, Cmd: []string{"bash", "-c", cmd}}
 	respCreate, err := dc.Cli.ContainerExecCreate(dc.Ctx, id, config)
 	if err != nil {
 		log.Fatalln(err)
@@ -117,5 +157,5 @@ func (dc *Dockercli) Exec(id string, lc *LanguageConf, ch chan<- string) {
 		log.Fatalln(err)
 	}
 
-	ch <- fmt.Sprintf("STDOUT:\n%s\nSTDERR:\n%s\nEXIT CODE: %d\n", string(stdout), string(stderr), res.ExitCode)
+	ch <- &ExecOutput{Stdout: string(stdout), Stderr: string(stderr), ExitCode: res.ExitCode}
 }

@@ -1,24 +1,52 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="utf-8">
+  <head>
+    <meta charset="utf-8" />
     <title>Delta</title>
-</head>
-<body>
-<h1 style="text-align: center;">Upload test</h1>
+    <script type="text/javascript">
+      function sendData() {
+        let myHeaders = new Headers();
+        myHeaders.append(
+          "Authorization",
+          "Token eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2Mzc3NTc2ODUsImlkIjoxfQ.ov8X1P7H-T__mG34011pVMJT762tjcEphxxcDSVhj8U"
+        );
 
-<div style="display: flex; justify-content: center;">
-    <form action="http://localhost:7777/api/submissions" method="post" enctype="multipart/form-data">
-        Language: <select name="lang">
-            <option value="c">C</option>
-            <option value="java">Java</option>
-            <option value="python">Python</option>
-          </select>
-          <br/>
-          <br/>
-        Files: <input type="file" name="mainFile"><br><br>
-        <input type="submit" style="width: 100%">
-    </form>
-</div>
-</body>
+        var formdata = new FormData();
+        formdata.append("language_id", document.getElementById("languageID").value);
+        formdata.append("main_file", document.getElementById("mainFile").files[0], "main.c");
+
+        var requestOptions = {
+          method: "POST",
+          headers: myHeaders,
+          body: formdata,
+          redirect: "follow",
+        };
+
+        fetch("http://localhost:8080/api/submissions", requestOptions)
+          .then((response) => response.text())
+          .then((result) => console.log(result))
+          .catch((error) => console.log("error", error));
+          
+        return false;
+      }
+    </script>
+  </head>
+  <body>
+    <h1 style="text-align: center">Upload test</h1>
+
+    <div style="display: flex; justify-content: center">
+      <form onsubmit="return sendData()">
+        Language:
+        <select id="languageID" name="language_id">
+          <option value="1">C</option>
+          <!-- <option value="java">Java</option>
+            <option value="python">Python</option> -->
+        </select>
+        <br />
+        <br />
+        File: <input id="mainFile" type="file" name="main_file" /><br /><br />
+        <input type="submit" style="width: 100%" />
+      </form>
+    </div>
+  </body>
 </html>

@@ -1,7 +1,7 @@
 package store
 
 import (
-	"github.com/bSkracic/delta-cli/model"
+	"github.com/bSkracic/delta-rest/model"
 	"gorm.io/gorm"
 )
 
@@ -15,12 +15,13 @@ func NewSubmissionStore(db *gorm.DB) *SubmissionStore {
 
 func (ss *SubmissionStore) GetSubmissions() ([]model.Submission, error) {
 	var s []model.Submission
-	return s, ss.db.First(s).Error
+	return s, ss.db.Preload("User").Preload("Language").First(s).Error
 }
 
 func (ss *SubmissionStore) GetSubmission(id uint) (*model.Submission, error) {
 	s := model.Submission{}
-	if err := ss.db.First(&s, id).Error; err != nil {
+
+	if err := ss.db.Preload("User").Preload("Language").First(&s, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
@@ -30,7 +31,7 @@ func (ss *SubmissionStore) GetSubmission(id uint) (*model.Submission, error) {
 }
 
 func (ss *SubmissionStore) CreateSubmission(s *model.Submission) error {
-	return ss.db.Create(s).Error
+	return ss.db.Create(s).Preload("User").Preload("Language").Find(s, s.ID).Error
 }
 
 func (ss *SubmissionStore) UpdateSubmission(s *model.Submission) error {

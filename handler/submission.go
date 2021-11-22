@@ -6,61 +6,80 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/bSkracic/delta-cli/errutil"
-	"github.com/bSkracic/delta-cli/model"
+	"github.com/bSkracic/delta-rest/model"
+	"github.com/bSkracic/delta-rest/utils"
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 )
 
 func (h *Handler) CreateSubmission(c echo.Context) error {
 
-	file, err := c.FormFile("mainFile")
+	file, err := c.FormFile("main_file")
 	if err != nil {
-		return c.JSON(http.StatusUnprocessableEntity, struct{ err string }{err: "Ubij se"})
+		return c.JSON(http.StatusUnprocessableEntity, utils.NewError(err))
 	}
 
 	src, err := file.Open()
 	if err != nil {
-		return c.JSON(http.StatusUnprocessableEntity, struct{ err string }{err: "Ubij se"})
+		return c.JSON(http.StatusUnprocessableEntity, utils.NewError(err))
 	}
 
 	buf := bytes.NewBuffer(nil)
 	if _, err := io.Copy(buf, src); err != nil {
-		return c.JSON(http.StatusUnprocessableEntity, struct{ err string }{err: "Ubij se"})
+		return c.JSON(http.StatusUnprocessableEntity, utils.NewError(err))
 	}
 
+	lID, err := strconv.Atoi(c.FormValue("language_id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, utils.NewError(err))
+	}
+
+	uID := userIDFromToken(c)
 	b := buf.Bytes()
-	s := model.Submission{Language: c.FormValue("language"), MainFile: b}
+	s := model.Submission{
+		UserID:     uID,
+		LanguageID: uint(lID),
+		MainFile:   b,
+	}
 
 	if err := h.submissionStore.CreateSubmission(&s); err != nil {
-		return c.JSON(http.StatusUnprocessableEntity, struct{ err string }{err: "Ubij se"})
+		return c.JSON(http.StatusUnprocessableEntity, utils.NewError(err))
 	}
 
-	return c.JSON(http.StatusCreated, struct{ id uint }{id: s.ID})
+	return c.JSON(http.StatusCreated, newSubmissionResponse(&s))
 }
 
 func (h *Handler) GetSubmission(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, struct {
-			message string
-		}{message: "id should be provided"})
+		return c.JSON(http.StatusBadRequest, utils.NewError(err))
 	}
 
 	if s, err := h.submissionStore.GetSubmission(uint(id)); err != nil {
 		return c.JSON(http.StatusInternalServerError, nil)
 	} else if s == nil {
-		return c.JSON(http.StatusNotFound, errutil.NotFound())
+		return c.JSON(http.StatusNotFound, utils.NotFound())
 	} else {
-		var buf bytes.Buffer
-		buf.Write(s.MainFile)
-		return c.JSON(http.StatusOK, struct {
-			Submission   model.Submission `json:"submission"`
-			MainFileText string           `json:"main_file_text"`
-		}{
-			Submission:   *s,
-			MainFileText: buf.String(),
-		})
+		return c.JSON(http.StatusOK, newSubmissionResponse(s))
 	}
 }
 
-// submit and execute
+func (h *Handler) DeleteSubmission(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, utils.NewError(err))
+	}
+
+	if s, err := h.submissionStore.GetSubmission(uint(id)); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, utils.NotFound())
+		}
+		return c.JSON(http.StatusInternalServerError, utils.NewError(err))
+	} else {
+		if err = h.submissionStore.DeleteSubmission(s); err != nil {
+			return c.JSON(http.StatusUnprocessableEntity, utils.NewError(err))
+		} else {
+			return c.JSON(http.StatusOK, nil)
+		}
+	}
+}

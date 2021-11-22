@@ -1,6 +1,6 @@
 package submission
 
-import "github.com/bSkracic/delta-cli/model"
+import "github.com/bSkracic/delta-rest/model"
 
 type Store interface {
 	GetSubmissions() ([]model.Submission, error)
