@@ -10,26 +10,21 @@ func (h *Handler) Register(v1 *echo.Group) {
 
 	jwtMiddleware := middleware.JWT(utils.JWTSecret)
 
-	// DELETE THIS
-	test := v1.Group("/test")
-	test.GET("/submissions/:id", h.GetSubmission)
-	test.POST("/submissions", h.CreateSubmission)
-	// DELETE THIS
-
-	// Submissions
 	submissions := v1.Group("/submissions", jwtMiddleware)
 	submissions.POST("", h.CreateSubmission)
 	submissions.GET("/:id", h.GetSubmission)
-	// Get all submissions
-	// Change submissions
-	// Delete submission
+	submissions.GET("/user", h.GetSubmissionForAuthor)
+	// Get all submissions for user with :id
+	// Change submissions with :id
+	// Delete submission with :id
 
-	// ExecEntries
-	execEntries := v1.Group("/exec_entries")
+	execEntries := v1.Group("/exec_entries", jwtMiddleware)
 	execEntries.POST("/start", h.StartExecution)
+	execEntries.POST("/text", h.SubmitAndExecute)
+	// execEntries.POST("/file") execute given file; reuse submission request
 	execEntries.GET("/:id", h.GetExecutionEntry)
+	execEntries.GET("/submission/:id", h.GetExecutionEntriesForSubmission)
 
-	// POST start execution(id submission)
 	// POST submit && execute (given text or form file) -> how does this affect multiple file problem
 
 }

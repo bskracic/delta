@@ -30,6 +30,15 @@ func (ss *SubmissionStore) GetSubmission(id uint) (*model.Submission, error) {
 	return &s, nil
 }
 
+func (ss *SubmissionStore) GetSubmissionsForAuthor(authorId uint) ([]model.Submission, error) {
+	var s []model.Submission
+
+	if err := ss.db.Where(&model.Submission{UserID: authorId}).Preload("User").Preload("Language").Find(&s).Error; err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
 func (ss *SubmissionStore) CreateSubmission(s *model.Submission) error {
 	return ss.db.Create(s).Preload("User").Preload("Language").Find(s, s.ID).Error
 }

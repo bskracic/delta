@@ -64,6 +64,21 @@ func (h *Handler) GetSubmission(c echo.Context) error {
 	}
 }
 
+func (h *Handler) GetSubmissionForAuthor(c echo.Context) error {
+
+	uID := userIDFromToken(c)
+	if s, err := h.submissionStore.GetSubmissionsForAuthor(uID); err != nil {
+		return c.JSON(http.StatusBadRequest, utils.NewError(err))
+	} else {
+		var r []*submissionResposne
+		for _, sub := range s {
+			r = append(r, newSubmissionResponse(&sub))
+		}
+		return c.JSON(http.StatusOK, r)
+	}
+
+}
+
 func (h *Handler) DeleteSubmission(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

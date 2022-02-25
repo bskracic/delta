@@ -157,5 +157,7 @@ func (dc *Dockercli) Exec(id string, cmd string, ch chan<- *ExecOutput) {
 		log.Fatalln(err)
 	}
 
+	log.Printf("\ncommand: %s\n\tstdout: %s\n\tstderr: %s\n\texit_code: %v\n\n", cmd, stdout, stderr, res.ExitCode)
+
 	ch <- &ExecOutput{Stdout: string(stdout), Stderr: string(stderr), ExitCode: res.ExitCode}
 }

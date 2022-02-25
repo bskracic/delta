@@ -61,7 +61,38 @@ func (r *newExecEntryRequest) bind(c echo.Context, e *model.ExecEntry) error {
 		return err
 	}
 
+	// if err := c.Validate(r); err != nil {
+	// 	return err
+	// }
+
 	e.SubmissionId = r.SubmissionID
+	e.CompilerOpt = r.ExecConfig.CompilerOpt
+	e.TimeLimit = r.ExecConfig.TimeLimit
+	e.MemoryLimit = r.ExecConfig.MemoryLimit
+	return nil
+}
+
+type newSubmissionAndExecEntry struct {
+	MainFileText string `json:"main_file_text"`
+	LanguageID   uint   `json:"language_id" validate:"numeric"`
+	ExecConfig   struct {
+		CompilerOpt string `json:"compiler_opt"`
+		TimeLimit   uint   `json:"time_limit"`
+		MemoryLimit uint   `json:"memory_limit"`
+	} `json:"exec_config"`
+}
+
+func (r *newSubmissionAndExecEntry) bind(c echo.Context, s *model.Submission, e *model.ExecEntry) error {
+	if err := c.Bind(r); err != nil {
+		return err
+	}
+
+	if err := c.Validate(r); err != nil {
+		return err
+	}
+
+	s.LanguageID = r.LanguageID
+	s.MainFile = []byte(r.MainFileText)
 	e.CompilerOpt = r.ExecConfig.CompilerOpt
 	e.TimeLimit = r.ExecConfig.TimeLimit
 	e.MemoryLimit = r.ExecConfig.MemoryLimit
