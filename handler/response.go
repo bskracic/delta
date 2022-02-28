@@ -72,6 +72,7 @@ type execEntryResponse struct {
 			CompilerOpt string `json:"compiler_opt"`
 			TimeLimit   uint   `json:"time_limit"`
 			MemoryLimit uint   `json:"memory_limit"`
+			Stdin       string `json:"stdin"`
 		} `json:"exec_config"`
 	} `json:"exec_entry"`
 }
@@ -84,6 +85,7 @@ func newExecEntryResponse(e *model.ExecEntry) *execEntryResponse {
 	r.ExecEntry.ExitCode = e.ExitCode
 	r.ExecEntry.Submission.ID = e.Submission.ID
 	r.ExecEntry.CreatedAt = e.CreatedAt
+	r.ExecEntry.ExecConfig.Stdin = e.Stdin
 	r.ExecEntry.Submission.CreatedAt = e.Submission.CreatedAt
 	r.ExecEntry.Submission.MainFileText = string(e.Submission.MainFile)
 	r.ExecEntry.Submission.Language.ID = e.Submission.Language.ID

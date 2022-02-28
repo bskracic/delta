@@ -108,7 +108,6 @@ func (dc *Dockercli) CreateDir(id string, dirName string) error {
 		case err := <-errs:
 			return err
 		case msg := <-msgs:
-			log.Printf("%v\n", msg)
 			if msg.Action == "exec_die" && msg.Actor.ID == id {
 				return nil
 			}
@@ -178,7 +177,7 @@ func (dc *Dockercli) Exec(id string, cmd string, ch chan<- *ExecOutput) {
 		log.Fatalln(err)
 	}
 
-	log.Printf("\ncommand: %s\nstdout: %s\nstderr: %s\nexit_code: %v\n\n", cmd, stdout, stderr, res.ExitCode)
+	// log.Printf("\ncommand: %s\nstdout: %s\nstderr: %s\nexit_code: %v\n\n", cmd, stdout, stderr, res.ExitCode)
 
 	ch <- &ExecOutput{Stdout: string(stdout), Stderr: string(stderr), ExitCode: res.ExitCode}
 }

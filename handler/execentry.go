@@ -110,11 +110,17 @@ func (h *Handler) SubmitAndExecute(c echo.Context) error {
 }
 
 func (h *Handler) execute(s *model.Submission, e *model.ExecEntry, timeLimit uint) {
+
+	start := time.Now()
+	log.Print("-----------------------------------------")
 	// NOTE: Currently restarting containers if they are stopped
 	// FIXME: Handle errors on docker operations
 	// Should be experimented with start vs restart time performance
 
 	contId := h.docker.RetreiveAvailableContainer(s.Language.Name, s.Language.Image)
+
+	log.Printf("%s Retrieved container: %s\n", fmt.Sprint(e.ID), time.Since(start))
+	stage1 := time.Now()
 
 	// Create directory {exec_entry_id} where main file and optional stdin file will be placed
 	dir := fmt.Sprint(e.ID)
@@ -122,21 +128,31 @@ func (h *Handler) execute(s *model.Submission, e *model.ExecEntry, timeLimit uin
 		log.Print(err)
 	}
 
+	log.Printf("%s Created dir: %s\n", fmt.Sprint(e.ID), time.Since(stage1))
+	stage2 := time.Now()
+
 	path := fmt.Sprintf("/%s/", dir)
 	// path := "/"
 	if err := h.docker.Copy(contId, s.Language.MainFileName, s.MainFile, path); err != nil {
 		log.Print(err)
 	}
 
-	// TODO: if stdin exists, copy to stdin text
-	// if(s.Stdin != "") {
+	log.Printf("%s Copied main file: %s\n", fmt.Sprint(e.ID), time.Since(stage2))
 
-	// }
+	// TODO: if stdin exists, copy to stdin text
+	if e.Stdin != "" {
+		stage21 := time.Now()
+		if err := h.docker.Copy(contId, "stdin.txt", []byte(e.Stdin), path); err != nil {
+			log.Print(err)
+		}
+		log.Printf("%s Copied stdin: %s\n", fmt.Sprint(e.ID), time.Since(stage21))
+	}
 
 	ch := make(chan *dockercli.ExecOutput, 1)
 	// Compile source code
 	if s.Language.CompileCmd != "" {
 
+		stage3 := time.Now()
 		cmd := fmt.Sprintf("cd %s && %s 2>&1", dir, s.Language.CompileCmd)
 		// cmd := fmt.Sprintf("%s 2>&1", s.Language.CompileCmd)
 
@@ -147,11 +163,18 @@ func (h *Handler) execute(s *model.Submission, e *model.ExecEntry, timeLimit uin
 			e.ExitCode = eout.ExitCode
 			e.Status = model.Failed
 			h.execEntryStore.Update(e) // TODO: add stderr?
+			log.Printf("%s Compiled: %s\n", fmt.Sprint(e.ID), time.Since(stage3))
 			return
 		}
+		log.Printf("%s Compiled: %s\n", fmt.Sprint(e.ID), time.Since(stage3))
 	}
+
+	stage4 := time.Now()
 	// Execute compiled code (or interpret without compilation step)
 	cmd := fmt.Sprintf("cd %s && %s 2>&1", dir, s.Language.ExecuteCmd)
+	if e.Stdin != "" {
+		cmd = fmt.Sprintf("%s < stdin.txt", cmd)
+	}
 	// cmd := fmt.Sprintf("%s 2>&1", s.Language.ExecuteCmd)
 	go h.docker.Exec(contId, cmd, ch)
 
@@ -183,7 +206,15 @@ func (h *Handler) execute(s *model.Submission, e *model.ExecEntry, timeLimit uin
 		}
 	}
 
+	log.Printf("%s Executed: %s\n", fmt.Sprint(e.ID), time.Since(stage4))
+
+	stage5 := time.Now()
 	if err := h.execEntryStore.Update(e); err != nil {
 		log.Fatalln(err)
 	}
+
+	log.Printf("%s Saved to db: %s\n", fmt.Sprint(e.ID), time.Since(stage5))
+
+	log.Printf("%s Total time: %s\n", fmt.Sprint(e.ID), time.Since(start))
+	log.Print("-----------------------------------------")
 }
