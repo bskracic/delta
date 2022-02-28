@@ -116,13 +116,12 @@ func (h *Handler) execute(s *model.Submission, e *model.ExecEntry, timeLimit uin
 
 	contId := h.docker.RetreiveAvailableContainer(s.Language.Name, s.Language.Image)
 
-	// TODO: Create directory {exec_entry_id} where main file and optional stdin file will be placed
+	// Create directory {exec_entry_id} where main file and optional stdin file will be placed
 	dir := fmt.Sprint(e.ID)
 	if err := h.docker.CreateDir(contId, dir); err != nil {
 		log.Print(err)
 	}
 
-	// BUG: Long startup times, starting container does not wait
 	path := fmt.Sprintf("/%s/", dir)
 	// path := "/"
 	if err := h.docker.Copy(contId, s.Language.MainFileName, s.MainFile, path); err != nil {
@@ -156,7 +155,7 @@ func (h *Handler) execute(s *model.Submission, e *model.ExecEntry, timeLimit uin
 	// cmd := fmt.Sprintf("%s 2>&1", s.Language.ExecuteCmd)
 	go h.docker.Exec(contId, cmd, ch)
 
-	// If time limit is set, terminate
+	// If time limit is set, terminate program after said time
 	if timeLimit != 0 {
 		select {
 		case res := <-ch:
