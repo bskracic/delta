@@ -53,6 +53,7 @@ type newExecEntryRequest struct {
 		CompilerOpt string `json:"compiler_opt"`
 		TimeLimit   uint   `json:"time_limit"`
 		MemoryLimit uint   `json:"memory_limit"`
+		Stdin       string `json:"stdin"`
 	} `json:"exec_config"`
 }
 
@@ -64,8 +65,8 @@ func (r *newExecEntryRequest) bind(c echo.Context, e *model.ExecEntry) error {
 	// if err := c.Validate(r); err != nil {
 	// 	return err
 	// }
-
 	e.SubmissionId = r.SubmissionID
+	e.Stdin = r.ExecConfig.Stdin
 	e.CompilerOpt = r.ExecConfig.CompilerOpt
 	e.TimeLimit = r.ExecConfig.TimeLimit
 	e.MemoryLimit = r.ExecConfig.MemoryLimit
@@ -79,6 +80,7 @@ type newSubmissionAndExecEntry struct {
 		CompilerOpt string `json:"compiler_opt"`
 		TimeLimit   uint   `json:"time_limit"`
 		MemoryLimit uint   `json:"memory_limit"`
+		Stdin       string `json:"stdin"`
 	} `json:"exec_config"`
 }
 
@@ -96,5 +98,6 @@ func (r *newSubmissionAndExecEntry) bind(c echo.Context, s *model.Submission, e 
 	e.CompilerOpt = r.ExecConfig.CompilerOpt
 	e.TimeLimit = r.ExecConfig.TimeLimit
 	e.MemoryLimit = r.ExecConfig.MemoryLimit
+	e.Stdin = r.ExecConfig.Stdin
 	return nil
 }

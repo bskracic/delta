@@ -110,22 +110,36 @@ func (h *Handler) SubmitAndExecute(c echo.Context) error {
 }
 
 func (h *Handler) execute(s *model.Submission, e *model.ExecEntry, timeLimit uint) {
-	// ### SUBOPTIMAL EXECUTION
-	// Should be put into worker pool or give priority to tasks that are not in batch
-	// Retreive available suitable container (may be slow because we are iterating over all possible containers with that image)
-	// and killing & removing exited ones
-
-	// could start container if it exited
+	// NOTE: Currently restarting containers if they are stopped
+	// FIXME: Handle errors on docker operations
+	// Should be experimented with start vs restart time performance
 
 	contId := h.docker.RetreiveAvailableContainer(s.Language.Name, s.Language.Image)
 
-	h.docker.Copy(s.MainFile, s.Language.MainFileName, contId)
+	// TODO: Create directory {exec_entry_id} where main file and optional stdin file will be placed
+	dir := fmt.Sprint(e.ID)
+	if err := h.docker.CreateDir(contId, dir); err != nil {
+		log.Print(err)
+	}
+
+	// BUG: Long startup times, starting container does not wait
+	path := fmt.Sprintf("/%s/", dir)
+	// path := "/"
+	if err := h.docker.Copy(contId, s.Language.MainFileName, s.MainFile, path); err != nil {
+		log.Print(err)
+	}
+
+	// TODO: if stdin exists, copy to stdin text
+	// if(s.Stdin != "") {
+
+	// }
 
 	ch := make(chan *dockercli.ExecOutput, 1)
-
 	// Compile source code
 	if s.Language.CompileCmd != "" {
-		cmd := fmt.Sprintf("%s 2>&1", s.Language.CompileCmd)
+
+		cmd := fmt.Sprintf("cd %s && %s 2>&1", dir, s.Language.CompileCmd)
+		// cmd := fmt.Sprintf("%s 2>&1", s.Language.CompileCmd)
 
 		go h.docker.Exec(contId, cmd, ch)
 		eout := <-ch
@@ -133,35 +147,37 @@ func (h *Handler) execute(s *model.Submission, e *model.ExecEntry, timeLimit uin
 			e.Result = eout.Stdout
 			e.ExitCode = eout.ExitCode
 			e.Status = model.Failed
-			h.execEntryStore.Update(e)
+			h.execEntryStore.Update(e) // TODO: add stderr?
 			return
 		}
 	}
-
-	// Execute compiled code
-	cmd := fmt.Sprintf("%s", s.Language.ExecuteCmd)
+	// Execute compiled code (or interpret without compilation step)
+	cmd := fmt.Sprintf("cd %s && %s 2>&1", dir, s.Language.ExecuteCmd)
+	// cmd := fmt.Sprintf("%s 2>&1", s.Language.ExecuteCmd)
 	go h.docker.Exec(contId, cmd, ch)
 
+	// If time limit is set, terminate
 	if timeLimit != 0 {
 		select {
 		case res := <-ch:
 			e.ExitCode = res.ExitCode
 			if res.ExitCode != 0 {
 				e.Status = model.Failed
-				e.Result = res.Stderr
+				e.Result = res.Stdout
 			} else {
 				e.Status = model.Finished
 				e.Result = res.Stdout
 			}
 		case <-time.After(time.Duration(timeLimit) * time.Millisecond):
 			e.Status = model.Interrupted
+			go h.docker.Kill(contId)
 		}
 	} else {
 		res := <-ch
 		e.ExitCode = res.ExitCode
 		if res.ExitCode != 0 {
 			e.Status = model.Failed
-			e.Result = res.Stderr
+			e.Result = res.Stdout
 		} else {
 			e.Status = model.Finished
 			e.Result = res.Stdout

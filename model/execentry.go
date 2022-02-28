@@ -16,6 +16,7 @@ type ExecEntry struct {
 	CompilerOpt  string
 	TimeLimit    uint
 	MemoryLimit  uint
+	Stdin        string
 }
 
 type ExecutionStatus int

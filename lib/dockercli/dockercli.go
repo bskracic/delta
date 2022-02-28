@@ -32,33 +32,31 @@ func CreateClient() *Dockercli {
 }
 
 func (dc *Dockercli) RetreiveAvailableContainer(langName string, image string) string {
-
+	// List containers with requested language in name, find the first suitable one.
+	// If error occurred while restarting stopped containers and none suitable started containers where found: start a new one.
 	contName := fmt.Sprintf("delta-%s", langName)
-
 	filters := filters.NewArgs()
 	filters.Add("name", contName)
-	containers, err := dc.Cli.ContainerList(dc.Ctx, types.ContainerListOptions{Filters: filters})
+	containers, err := dc.Cli.ContainerList(dc.Ctx, types.ContainerListOptions{Filters: filters, All: true})
 	if err != nil {
 		panic(err)
 	}
 
 	var id string
-
 	if len(containers) == 0 {
 		id = dc.Run(fmt.Sprintf("delta-%s-%v", langName, time.Now().Unix()), image)
 	} else {
 		found := false
 		for _, c := range containers {
-			if strings.Contains(c.Status, "Up") {
-				id = c.ID
-				found = true
-				break
-			} else {
-				// Remove all containers that are exited or not running, may be slow, depending on number of containers!
-				dc.Remove(c.ID)
+			if strings.Contains(c.Status, "Up") == false {
+				if err := dc.Cli.ContainerStart(dc.Ctx, c.ID, types.ContainerStartOptions{}); err != nil {
+					continue
+				}
 			}
+			id = c.ID
+			found = true
+			break
 		}
-
 		if !found {
 			id = dc.Run(fmt.Sprintf("delta-%s-%v", langName, time.Now().Unix()), image)
 		}
@@ -93,18 +91,41 @@ func (dc *Dockercli) Run(name string, image string) string {
 	return resp.ID
 }
 
-func (dc *Dockercli) Copy(mainFile []byte, mainFileName string, id string) {
-	var buf bytes.Buffer
-	buf.Write(mainFile)
-	file, err := wrap.Generate(mainFileName, buf.String())
+func (dc *Dockercli) CreateDir(id string, dirName string) error {
+	cmd := fmt.Sprintf("mkdir %s", dirName)
+	config := types.ExecConfig{Cmd: []string{"bash", "-c", cmd}}
+	respCreate, err := dc.Cli.ContainerExecCreate(dc.Ctx, id, config)
 	if err != nil {
-		log.Fatalln(err)
+		return err
 	}
 
-	filePath := "/"
-	if err := dc.Cli.CopyToContainer(dc.Ctx, id, filePath, file, types.CopyToContainerOptions{AllowOverwriteDirWithFile: true}); err != nil {
-		log.Fatalf("copy failed: %s", err)
+	// Listen for an event and return only after exec finishes
+	msgs, errs := dc.Cli.Events(dc.Ctx, types.EventsOptions{})
+	dc.Cli.ContainerExecStart(dc.Ctx, respCreate.ID, types.ExecStartCheck{})
+
+	for {
+		select {
+		case err := <-errs:
+			return err
+		case msg := <-msgs:
+			log.Printf("%v\n", msg)
+			if msg.Action == "exec_die" && msg.Actor.ID == id {
+				return nil
+			}
+		}
 	}
+
+}
+
+func (dc *Dockercli) Copy(id string, fileName string, file []byte, path string) error {
+	var buf bytes.Buffer
+	buf.Write(file)
+	f, err := wrap.Generate(fileName, buf.String())
+	if err != nil {
+		return err
+	}
+
+	return dc.Cli.CopyToContainer(dc.Ctx, id, path, f, types.CopyToContainerOptions{AllowOverwriteDirWithFile: true})
 }
 
 type ExecOutput struct {
@@ -114,7 +135,7 @@ type ExecOutput struct {
 }
 
 func (dc *Dockercli) Exec(id string, cmd string, ch chan<- *ExecOutput) {
-	config := types.ExecConfig{AttachStdin: true, AttachStdout: true, Cmd: []string{"bash", "-c", cmd}}
+	config := types.ExecConfig{AttachStdout: true, Cmd: []string{"bash", "-c", cmd}}
 	respCreate, err := dc.Cli.ContainerExecCreate(dc.Ctx, id, config)
 	if err != nil {
 		log.Fatalln(err)
@@ -123,7 +144,7 @@ func (dc *Dockercli) Exec(id string, cmd string, ch chan<- *ExecOutput) {
 	respExec, err := dc.Cli.ContainerExecAttach(dc.Ctx, respCreate.ID, types.ExecStartCheck{})
 	defer respExec.Close()
 
-	// read the output
+	// Read the output
 	var outBuf, errBuf bytes.Buffer
 	outputDone := make(chan error)
 
@@ -157,7 +178,7 @@ func (dc *Dockercli) Exec(id string, cmd string, ch chan<- *ExecOutput) {
 		log.Fatalln(err)
 	}
 
-	log.Printf("\ncommand: %s\n\tstdout: %s\n\tstderr: %s\n\texit_code: %v\n\n", cmd, stdout, stderr, res.ExitCode)
+	log.Printf("\ncommand: %s\nstdout: %s\nstderr: %s\nexit_code: %v\n\n", cmd, stdout, stderr, res.ExitCode)
 
 	ch <- &ExecOutput{Stdout: string(stdout), Stderr: string(stderr), ExitCode: res.ExitCode}
 }

@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/bSkracic/delta-rest/db"
 	"github.com/bSkracic/delta-rest/handler"
 	"github.com/bSkracic/delta-rest/lib/dockercli"
@@ -10,7 +13,14 @@ import (
 )
 
 func main() {
-	r := router.New()
+
+	f, err := os.OpenFile("logfile.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		panic(fmt.Sprintf("error opening file: %v", err))
+	}
+	defer f.Close()
+
+	r := router.New(f)
 	v1 := r.Group("/api")
 
 	d := db.New()
