@@ -1,0 +1,50 @@
+version: "3.7"
+
+volumes:
+    dbvolume:
+      name: delta-db-volume
+    apivolume:
+      name: delta-service-volume
+
+networks:
+  internalnetwork:
+    name: delta-network
+    external: false
+
+services:
+  db:
+    container_name: "${DB_HOST}"
+    image: postgres:latest
+    restart: on-failure
+    env_file:
+      - .env
+    ports:
+      - "${DB_PORT}:${DB_PORT}"
+    volumes:
+      - dbvolume:/var/lib/postgresql/data
+      - ./db/scripts:/docker-entrypoint-initdb.d/
+    networks:
+      - internalnetwork
+    environment:
+      POSTGRES_USER: "${DB_USER}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+      POSTGRES_DB: "${DB_NAME}"
+
+  api:
+    depends_on:
+      - db
+    container_name: "delta"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - apivolume:/delta
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+    ports:
+      - 8000:8000
+    networks:
+      - internalnetwork
+    env_file:
+      - .env
+    entrypoint: ["./server"]
