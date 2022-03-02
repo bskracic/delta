@@ -139,7 +139,7 @@ func (h *Handler) execute(s *model.Submission, e *model.ExecEntry, timeLimit uin
 
 	log.Printf("%s Copied main file: %s\n", fmt.Sprint(e.ID), time.Since(stage2))
 
-	// TODO: if stdin exists, copy to stdin text
+	// Copy input if exists
 	if e.Stdin != "" {
 		stage21 := time.Now()
 		if err := h.docker.Copy(contId, "stdin.txt", []byte(e.Stdin), path); err != nil {
@@ -154,7 +154,6 @@ func (h *Handler) execute(s *model.Submission, e *model.ExecEntry, timeLimit uin
 
 		stage3 := time.Now()
 		cmd := fmt.Sprintf("cd %s && %s 2>&1", dir, s.Language.CompileCmd)
-		// cmd := fmt.Sprintf("%s 2>&1", s.Language.CompileCmd)
 
 		go h.docker.Exec(contId, cmd, ch)
 		eout := <-ch
@@ -162,7 +161,7 @@ func (h *Handler) execute(s *model.Submission, e *model.ExecEntry, timeLimit uin
 			e.Result = eout.Stdout
 			e.ExitCode = eout.ExitCode
 			e.Status = model.Failed
-			h.execEntryStore.Update(e) // TODO: add stderr?
+			h.execEntryStore.Update(e)
 			log.Printf("%s Compiled: %s\n", fmt.Sprint(e.ID), time.Since(stage3))
 			return
 		}
@@ -175,7 +174,7 @@ func (h *Handler) execute(s *model.Submission, e *model.ExecEntry, timeLimit uin
 	if e.Stdin != "" {
 		cmd = fmt.Sprintf("%s < stdin.txt", cmd)
 	}
-	// cmd := fmt.Sprintf("%s 2>&1", s.Language.ExecuteCmd)
+
 	go h.docker.Exec(contId, cmd, ch)
 
 	// If time limit is set, terminate program after said time

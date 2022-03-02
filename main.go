@@ -43,10 +43,8 @@ func main() {
 	h.Register(v1)
 	v1.POST("/register", h.SignUp)
 	v1.POST("/login", h.Login)
-	v1.GET("/status", func (c echo.Context) error {
+	v1.GET("/status", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, "ok")
 	})
 	r.Logger.Fatal(r.Start(":8000"))
-	// r.Logger.Fatal(r.StartTLS(":8080", "server.crt", "server.key"))
-
 }
