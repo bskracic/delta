@@ -41,8 +41,6 @@ func main() {
 
 	h := handler.NewHandler(us, ls, ss, es, *dc)
 	h.Register(v1)
-	v1.POST("/register", h.SignUp)
-	v1.POST("/login", h.Login)
 	v1.GET("/status", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, "ok")
 	})

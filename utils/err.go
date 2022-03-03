@@ -46,3 +46,10 @@ func NotFound() Error {
 	e.Errors["body"] = "resource not found"
 	return e
 }
+
+func RequiresAuthentication() Error {
+	e := Error{}
+	e.Errors = make(map[string]interface{})
+	e.Errors["body"] = "requested content requires authentication"
+	return e
+}

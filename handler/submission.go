@@ -37,7 +37,7 @@ func (h *Handler) CreateSubmission(c echo.Context) error {
 	uID := userIDFromToken(c)
 	b := buf.Bytes()
 	s := model.Submission{
-		UserID:     uID,
+		UserID:     &uID,
 		LanguageID: uint(lID),
 		MainFile:   b,
 	}

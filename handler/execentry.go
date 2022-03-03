@@ -41,6 +41,24 @@ func (h *Handler) StartExecution(c echo.Context) error {
 	return c.JSON(http.StatusCreated, newExecEntryResponse(e))
 }
 
+func (h *Handler) GetPublicExecutionEntry(c echo.Context) error {
+
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, utils.NewError(err))
+	}
+
+	if e, err := h.execEntryStore.GetExecEntry(uint(id)); err != nil {
+		return c.JSON(http.StatusInternalServerError, utils.NewError(err))
+	} else if e == nil {
+		return c.JSON(http.StatusNotFound, utils.NotFound())
+	} else if e.Submission.UserID != nil {
+		return c.JSON(http.StatusForbidden, utils.RequiresAuthentication())
+	} else {
+		return c.JSON(http.StatusOK, newExecEntryResponse(e))
+	}
+}
+
 func (h *Handler) GetExecutionEntry(c echo.Context) error {
 
 	id, err := strconv.Atoi(c.Param("id"))
@@ -89,8 +107,6 @@ func (h *Handler) SubmitAndExecute(c echo.Context) error {
 	if err := req.bind(c, s, e); err != nil {
 		return c.JSON(http.StatusBadRequest, utils.NewError(err))
 	}
-
-	s.UserID = userIDFromToken(c)
 
 	if err := h.submissionStore.CreateSubmission(s); err != nil {
 		return c.JSON(http.StatusUnprocessableEntity, utils.NewError(err))

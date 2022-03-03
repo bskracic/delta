@@ -33,7 +33,7 @@ func (ss *SubmissionStore) GetSubmission(id uint) (*model.Submission, error) {
 func (ss *SubmissionStore) GetSubmissionsForAuthor(authorId uint) ([]model.Submission, error) {
 	var s []model.Submission
 
-	if err := ss.db.Where(&model.Submission{UserID: authorId}).Preload("User").Preload("Language").Find(&s).Error; err != nil {
+	if err := ss.db.Where(&model.Submission{UserID: &authorId}).Preload("User").Preload("Language").Find(&s).Error; err != nil {
 		return nil, err
 	}
 	return s, nil
